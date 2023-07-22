@@ -3,6 +3,7 @@ tests/test-results
 tests/trash\ directory.*
 backup/*
 .idea
+switch_users
 done.txt
 report.txt
 todo.txt
