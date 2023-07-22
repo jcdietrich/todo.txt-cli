@@ -1,6 +1,8 @@
 VERSION-FILE
 tests/test-results
 tests/trash\ directory.*
+backup/*
+.idea
 done.txt
 report.txt
 todo.txt
