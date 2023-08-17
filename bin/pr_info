@@ -1,0 +1,104 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'json'
+
+class GithubPRs
+  def initialize
+    @repos = {}
+  end
+
+  def fetch_if_needed(repo)
+    return unless @repos[repo].nil?
+
+    `git fetch 2>&1 /dev/null`
+    @repos[repo] = 'fetched'
+  end
+
+  def pr_info(search_string, repo = nil)
+    info = `gh search prs --author jdietrich-tc --json "title,state,url,repository" "#{search_string}"`
+    info_arr = JSON.parse(info)
+
+    info_arr.each_with_index do |pr, index| 
+      info = `gh pr view '#{pr['url']}' --json "baseRefName,mergeStateStatus,mergeable,state,mergeCommit,mergedAt"`
+      info_arr[index] = pr.merge(JSON.parse(info))
+    end
+
+    markdown = ''
+
+    info_arr.each do |pr|
+      merge_commit = pr.fetch('mergeCommit')&.fetch('oid')
+      repo = pr.fetch('repository')&.fetch('name')
+
+      unless merge_commit.nil?
+        branches = Dir.chdir("/Users/jcd/work/#{repo}/") do
+          fetch_if_needed(repo)
+          `git branch -r --contains #{merge_commit} |  grep -e 'origin/release/[^ ]*' -e 'origin/develop' -e 'origin/main' -o | uniq`
+        end
+        branches = branches.split(/\n/)
+      end
+
+      state = pr['state']
+      state = "*#{state}*" if ['OPEN'].include? state
+      markdown += <<~MARKDOWN
+        |                      | #{pr['title']}
+        |----------------------|------------------------------------------------------------
+        |*Repo:*               | #{repo}
+        |*URL:*                | <#{pr['url']}>
+        |*State:*              | #{state}
+        |*Merge to:*           | #{pr['baseRefName']}
+        |*Merge Status State:* | #{pr['mergeStateStatus']}
+        |*Mergeable:*          | #{pr['mergeable']}
+        |*Merged At:*          | #{pr['mergeable']}
+        |*Merge Commit:*       | #{merge_commit}
+        |*In Branches:*        | #{branches}
+
+      MARKDOWN
+    end
+
+    markdown
+  end
+end
+
+class ArgParser
+  def self.parse
+    params = {}
+
+    OptionParser.new do |opt|
+      opt.banner = format(%(
+pr_info
+
+given a serach string, will fetch details about all matching PRs
+
+Note:
+  this requires that you have the
+    * github cli
+    * optparse gem
+    * tty_markdown gem
+
+Usage: pr_info <SEARCH_STRING>))
+    end.parse!
+
+    params[:ticket] = ARGV[0]
+    params
+  end
+end
+
+begin
+  options = ArgParser.parse
+
+  if options.keys.empty?
+    # no args passed, so we will
+    # reset ARGV to pass in --help
+
+    Object.send(:remove_const, :ARGV)
+
+    ARGV = %w[_ --help].freeze
+
+    pp ArgParser.parse
+  else
+    puts GithubPRs.new.pr_info(options[:ticket])
+  end
+rescue ArgumentError, SocketError, OptionParser::MissingArgument => e
+  puts e.message.red
+end

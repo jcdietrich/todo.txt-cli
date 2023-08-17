@@ -1,8 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
-puts '*******************************'
-pp ARGV
-puts '*******************************'
+
 backup_dir = ''
 
 # remove the -d if present
@@ -12,7 +10,8 @@ if ARGV[0] == '-d'
 end
 
 ARGV.each do |file|
-  pp file
+  next unless File.exist?("#{ENV['TODO_DIR']}/#{file}")
+
   new_name = "#{backup_dir}/#{File.basename(file)}.bak"
   mode = if File.exist?(new_name)
            puts "appending backup to #{new_name}"
@@ -21,7 +20,6 @@ ARGV.each do |file|
            puts "creating backup to #{new_name}"
            'w'
          end
-  pp new_name
-  contents = "\n#{File.read(file)}"
+  contents = "\n#{File.read("#{ENV['TODO_DIR']}/#{file}")}"
   File.write(new_name, contents, mode: mode)
 end

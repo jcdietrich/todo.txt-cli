@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'rubygems'
+require 'jira-ruby'
+require 'jq'
+require 'tty-markdown'
+require_relative './.jira_options'
+
+def jira_info(ticket)
+  client = JIRA::Client.new(JIRA_OPTIONS.except(:project))
+
+  issue = client.Issue.find(ticket,
+                            {
+                              fields: 'key,summary,description,fixVersions,status'
+                            })
+  jq = JQ(issue.to_json)
+  info = jq.search('{key: .key, summary: .fields.summary, description: .fields.description, fix_versions:(.fields.fixVersions | map(.name)), status: .fields.status.name, status_category: .fields.status.statusCategory.name}').first
+
+  <<~MARKDOWN
+
+    ## [#{ticket}] #{info['summary']}
+
+    |                |                                             
+    |----------------|---------------------------------------------
+    |*Ticket:*       | #{JIRA_OPTIONS[:site]}browse/#{info['key']} 
+    |*Fix Versions:* | #{info['fix_versions']}|
+    |*Status:*       |#{info['status']} (#{info['status_category']})
+
+    ### *Description:*
+    #{info['description'].gsub(/^( *)#+/, '\1-').gsub(/^/, '> ')}
+  MARKDOWN
+end
+
+class ArgParser
+  def self.parse
+    params = {}
+
+    OptionParser.new do |opt|
+      opt.banner = format(%(
+jira_info
+
+given a ticket id, will fetch details about that ticket
+
+Note:
+  this requires that you have the ruby libraries 'rubygems' and 'jira-ruby'
+
+Usage: jira_info <TICKET>))
+    end.parse!
+
+    params[:ticket] = ARGV[0]
+    params
+  end
+end
+
+begin
+  options = ArgParser.parse
+
+  if options.keys.empty?
+    # no args passed, so we will
+    # reset ARGV to pass in --help
+
+    Object.send(:remove_const, :ARGV)
+
+    # rubocop:disable Style/MutableConstant
+    ARGV = %w[_ --help]
+    # rubocop:enable Style/MutableConstant
+
+   pp ArgParser.parse
+  else
+    puts jira_info(options[:ticket])
+  end
+rescue ArgumentError, SocketError, OptionParser::MissingArgument => e
+  puts e.message.red
+end

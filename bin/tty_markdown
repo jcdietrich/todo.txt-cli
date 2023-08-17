@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+FORMATTER="${TODO_DIR}/bin/tty_markdown_ruby"
+
+"${FORMATTER}" "$@" | less -R 

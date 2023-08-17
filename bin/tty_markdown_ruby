@@ -1,0 +1,64 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'tty-markdown'
+require "#{ENV['TODO_DIR']}/lib/todo_markdown"
+
+def tty_markdown(text)
+  text = TodoMarkdown.clean_markdown(text)
+  text = text.gsub('\newpage', '*****')
+  text = text.gsub(':eyes:', '👀')
+  text = text.gsub(':no-entry:', '⛔️')
+  text = text.gsub(':fire:', '🔥')
+  text = text.gsub(':stop:', '🛑')
+  text = text.gsub(':cherries:', '🍒')
+  text = text.gsub(':wrench:', '🔧')
+  text = text.gsub(/^% +\(.*\)$/, '** \1 **')
+
+  return TTY::Markdown.parse(text) unless ENV['TTY_MARKDOWN_OFF']
+
+  text
+end
+
+class ArgParser
+  def self.parse
+    params = {}
+
+    OptionParser.new do |opt|
+      opt.banner = format(%(
+tty_markdown
+
+given a markdown string, this will make it pretty for the
+terminal display
+
+Note:
+  this requires that you have the ruby library 'tty-markdown'
+
+Usage: tty_markdown <MARKDOWN>))
+    end.parse!
+
+    params[:text] = ARGV.join(' ')
+    params
+  end
+end
+
+begin
+  options = ArgParser.parse
+
+  if options.keys.empty?
+    # no args passed, so we will
+    # reset ARGV to pass in --help
+
+    Object.send(:remove_const, :ARGV)
+
+    # rubocop:disable Style/MutableConstant
+    ARGV = %w[_ --help]
+    # rubocop:enable Style/MutableConstant
+
+   pp ArgParser.parse
+  else
+    puts tty_markdown(options[:text])
+  end
+rescue ArgumentError, SocketError, OptionParser::MissingArgument => e
+  puts e.message.red
+end

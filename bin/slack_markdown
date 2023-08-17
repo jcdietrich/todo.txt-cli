@@ -1,0 +1,51 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require "#{ENV['TODO_DIR']}/lib/todo_markdown"
+
+def clean_markdown(text)
+  text = TodoMarkdown.clean_markdown(text)
+  text = TodoMarkdown.clean_to_slack(text)
+
+  text
+end
+
+class ArgParser
+  def self.parse
+    params = {}
+
+    OptionParser.new do |opt|
+      opt.banner = format(%(
+slack_markdown
+
+given a markdown string, this will make a 'clean' version
+for slack
+
+Usage: slack_markdown <MARKDOWN>))
+    end.parse!
+
+    params[:text] = ARGV.join(' ')
+    params
+  end
+end
+
+begin
+  options = ArgParser.parse
+
+  if options.keys.empty?
+    # no args passed, so we will
+    # reset ARGV to pass in --help
+
+    Object.send(:remove_const, :ARGV)
+
+    # rubocop:disable Style/MutableConstant
+    ARGV = %w[_ --help]
+    # rubocop:enable Style/MutableConstant
+
+   pp ArgParser.parse
+  else
+    puts clean_markdown(options[:text])
+  end
+rescue ArgumentError, SocketError, OptionParser::MissingArgument => e
+  puts e.message.red
+end
